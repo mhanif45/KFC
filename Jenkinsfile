@@ -2,77 +2,76 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_USER = "hanif040"
-        DOCKER_REPO = "kfc-static"
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-        IMAGE_FULL = "${DOCKER_USER}/${DOCKER_REPO}:${IMAGE_TAG}"
-        GIT_REPO = "https://github.com/mhanif45/KFC.git"
+        IMAGE_NAME = "hanif040/kfc-static"
+        IMAGE_TAG  = "${BUILD_NUMBER}"
+        IMAGE_FULL = "${IMAGE_NAME}:${IMAGE_TAG}"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: "${GIT_REPO}"
+                echo "Checking out source code..."
+                git branch: 'main', url: 'https://github.com/mhanif45/KFC.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    set -e
-                    echo "Building Docker image..."
+                echo "Building Docker image ${IMAGE_FULL}..."
+                sh """
                     docker build -t ${IMAGE_FULL} .
-                '''
+                """
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh '''
-                        set -e
-                        echo "Logging in to Docker Hub..."
-                        echo "$PASS" | docker login -u "$USER" --password-stdin
-
-                        echo "Pushing Docker image..."
+                echo "Pushing Docker image to Docker Hub..."
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
+                                                 usernameVariable: 'DOCKER_USER', 
+                                                 passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
                         docker push ${IMAGE_FULL}
-                    '''
+                    """
                 }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh '''
-                    set -e
-                    echo "Updating Kubernetes deployment..."
+                echo "Deploying to Kubernetes..."
+                script {
+                    def deployment = "kfc-static-deployment"
+                    def containerName = sh(
+                        script: "kubectl get deployment ${deployment} -o jsonpath='{.spec.template.spec.containers[0].name}'",
+                        returnStdout: true
+                    ).trim()
 
-                    # Get the first container name from deployment
-                    CONTAINER=$(kubectl get deployment kfc-static-deployment \
-                        -o jsonpath="{.spec.template.spec.containers[0].name}")
-
-                    # Update image in deployment
-                    kubectl set image deployment/kfc-static-deployment \
-                        ${CONTAINER}=${IMAGE_FULL} --record
-
-                    # Wait for rollout to finish
-                    kubectl rollout status deployment/kfc-static-deployment --timeout=180s
-
-                    echo "Deployment finished. Current image:"
-                    kubectl get deployment kfc-static-deployment \
-                        -o=jsonpath="{.spec.template.spec.containers[0].image}"; echo
-                '''
+                    try {
+                        sh """
+                            kubectl set image deployment/${deployment} ${containerName}=${IMAGE_FULL} --record
+                            kubectl rollout status deployment/${deployment} --timeout=180s
+                        """
+                        echo "Deployment updated successfully."
+                    } catch (err) {
+                        echo "Deployment failed, rolling back..."
+                        sh "kubectl rollout undo deployment/${deployment}"
+                        error "Deployment failed and rolled back."
+                    }
+                }
             }
         }
+
     }
 
     post {
         success {
-            echo "Pipeline completed successfully!"
+            echo "Pipeline finished successfully."
         }
         failure {
-            echo "Pipeline failed. Check the logs above for errors."
+            echo "Pipeline failed. Check logs above."
         }
     }
 }
