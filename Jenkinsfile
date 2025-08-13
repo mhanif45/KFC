@@ -3,13 +3,13 @@ pipeline {
 
     environment {
         IMAGE_NAME = "hanif040/kfc-static"
-        IMAGE_TAG  = "${BUILD_NUMBER}"
+        IMAGE_TAG = "latest"
         IMAGE_FULL = "${IMAGE_NAME}:${IMAGE_TAG}"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 echo "Checking out source code..."
                 git branch: 'main', url: 'https://github.com/mhanif45/KFC.git'
@@ -27,13 +27,12 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                echo "Pushing Docker image to Docker Hub..."
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
-                                                 usernameVariable: 'DOCKER_USER', 
-                                                 passwordVariable: 'DOCKER_PASS')]) {
+                echo "Logging in and pushing Docker image..."
+                withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh """
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         docker push ${IMAGE_FULL}
+                        docker logout
                     """
                 }
             }
@@ -42,36 +41,22 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 echo "Deploying to Kubernetes..."
-                script {
-                    def deployment = "kfc-static-deployment"
-                    def containerName = sh(
-                        script: "kubectl get deployment ${deployment} -o jsonpath='{.spec.template.spec.containers[0].name}'",
-                        returnStdout: true
-                    ).trim()
-
-                    try {
-                        sh """
-                            kubectl set image deployment/${deployment} ${containerName}=${IMAGE_FULL} --record
-                            kubectl rollout status deployment/${deployment} --timeout=180s
-                        """
-                        echo "Deployment updated successfully."
-                    } catch (err) {
-                        echo "Deployment failed, rolling back..."
-                        sh "kubectl rollout undo deployment/${deployment}"
-                        error "Deployment failed and rolled back."
-                    }
-                }
+                sh """
+                    CONTAINER=\$(kubectl get deployment kfc-static-deployment -o jsonpath='{.spec.template.spec.containers[0].name}')
+                    kubectl set image deployment/kfc-static-deployment \${CONTAINER}=${IMAGE_FULL} --record
+                    kubectl rollout status deployment/kfc-static-deployment --timeout=180s
+                    echo "Deployment complete. Current image: \${IMAGE_FULL}"
+                """
             }
         }
-
     }
 
     post {
         success {
-            echo "Pipeline finished successfully."
+            echo "Pipeline completed successfully."
         }
         failure {
-            echo "Pipeline failed. Check logs above."
+            echo "Pipeline failed. Check logs for details."
         }
     }
 }
