@@ -1,73 +1,48 @@
 pipeline {
-  agent any
+    agent any
 
-  environment {
-    DOCKERHUB_USER = 'hanif040'
-    IMAGE_NAME     = 'kfc-static'
-    IMAGE_TAG      = "${env.BUILD_NUMBER}"                  // unique tag each build
-    IMAGE_FULL     = "${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
-    IMAGE_LATEST   = "${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
-    KUBECONFIG     = '/var/lib/jenkins/.kube/config'        // jenkins kubeconfig path
-  }
-
-  options {
-    timestamps()
-    ansiColor('xterm')
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        // If your repo branch is master, change 'main' to 'master'
-        git url: 'https://github.com/mhanif45/KFC.git', branch: 'main'
-      }
+    environment {
+        DOCKER_USER = "hanif040"
+        DOCKER_REPO = "kfc-static"
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        IMAGE_FULL = "${DOCKER_USER}/${DOCKER_REPO}:${IMAGE_TAG}"
+        GIT_REPO = "https://github.com/mhanif45/KFC.git"
     }
 
-    stage('Docker Build') {
-      steps {
-        sh """
-          set -e
-          echo "🔨 Building Docker image..."
-          docker build -t ${IMAGE_FULL} -t ${IMAGE_LATEST} .
-        """
-      }
-    }
+    stages {
 
-    stage('Docker Login & Push') {
-      steps {
-        withCredentials([usernamePassword(credentialsId: 'docker-hub',
-                                          usernameVariable: 'DH_USER',
-                                          passwordVariable: 'DH_PASS')]) {
-          sh """
-            set -e
-            echo "🔑 Logging into Docker Hub..."
-            echo "\$DH_PASS" | docker login -u "\$DH_USER" --password-stdin
-            echo "📤 Pushing image to Docker Hub..."
-            docker push ${IMAGE_FULL}
-            docker push ${IMAGE_LATEST}
-            docker logout || true
-          """
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: "${GIT_REPO}"
+            }
         }
-      }
-    }
 
-    stage('Deploy to Kubernetes') {
-      steps {
-        sh """
-          set -e
-          echo "🚀 Updating Kubernetes deployment..."
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    set -e
+                    echo "Building Docker image..."
+                    docker build -t ${IMAGE_FULL} .
+                '''
+            }
+        }
 
-          # Find first container name in deployment
-          CONTAINER=\$(kubectl get deployment kfc-static-deployment \
-            -o jsonpath='{.spec.template.spec.containers[0].name}')
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh '''
+                        set -e
+                        echo "Logging in to Docker Hub..."
+                        echo "$PASS" | docker login -u "$USER" --password-stdin
 
-          # Update image to new tag
-          kubectl set image deployment/kfc-static-deployment \\
-            \${CONTAINER}=${IMAGE_FULL} --record
+                        echo "Pushing Docker image..."
+                        docker push ${IMAGE_FULL}
+                    '''
+                }
+            }
+        }
 
-          # Wait for pods to be ready
-          kubectl rollout status deployment/kfc-static-deployment --timeout=180s
-
-          # Show final deployed image
-          echo "✅ Now running imag
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
 
