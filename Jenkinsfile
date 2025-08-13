@@ -45,4 +45,35 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
+                    set -e
+                    echo "Updating Kubernetes deployment..."
+
+                    # Get the first container name from deployment
+                    CONTAINER=$(kubectl get deployment kfc-static-deployment \
+                        -o jsonpath="{.spec.template.spec.containers[0].name}")
+
+                    # Update image in deployment
+                    kubectl set image deployment/kfc-static-deployment \
+                        ${CONTAINER}=${IMAGE_FULL} --record
+
+                    # Wait for rollout to finish
+                    kubectl rollout status deployment/kfc-static-deployment --timeout=180s
+
+                    echo "Deployment finished. Current image:"
+                    kubectl get deployment kfc-static-deployment \
+                        -o=jsonpath="{.spec.template.spec.containers[0].image}"; echo
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed. Check the logs above for errors."
+        }
+    }
+}
 
