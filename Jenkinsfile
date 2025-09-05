@@ -6,6 +6,14 @@ pipeline {        // lowercase 'pipeline'
                 git branch: 'main', url: 'https://github.com/mhanif45/KFC.git'
             }
         }
+
+stage('Docker Build') {
+    steps {
+        script {
+            docker.build("hanif040/kfc-static:${env.BUILD_NUMBER}")
+        }
+    }
+}
     }
 }
 
