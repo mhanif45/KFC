@@ -1,0 +1,9 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 30007   # Kubernetes NodePort inside cluster
+    hostPort: 8082         # Port on your Windows host
+    protocol: TCP
+

@@ -13,8 +13,8 @@ spec:
         app: kfc-static
     spec:
       containers:
-      - name: kfc-website
-        image: hanif040/kfc-static:latest
-        ports:
-        - containerPort: 80
+        - name: kfc-website
+          image: hanif040/kfc-static:v2
+          ports:
+            - containerPort: 80
 
