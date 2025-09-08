@@ -25,20 +25,9 @@ pipeline {
                 }
             }
         }
-
-stage('Deploy to Kubernetes') {
-    steps {
-        script {
-            // Use the kube_config credential
-            withCredentials([string(credentialsId: 'kube_config', variable: 'KUBECONFIG_CONTENT')]) {
-                // Save the kubeconfig to a file
-                writeFile file: 'kubeconfig', text: env.KUBECONFIG_CONTENT
-
-                // Use kubectl with the kubeconfig file
-                sh 'kubectl --kubeconfig=kubeconfig set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:21 -n default'
-            }
-        }
-    }
+withCredentials([string(credentialsId: 'Kube_config', variable: 'KUBECONFIG_CONTENT')]) {
+    writeFile file: 'kubeconfig', text: env.KUBECONFIG_CONTENT
+    sh 'kubectl --kubeconfig=kubeconfig set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:22 -n default'
 }
 
 }
