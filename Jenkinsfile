@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "hanif040/kfc-static"
+        DOCKER_IMAGE = "hanif040/kfc-static"
     }
 
     stages {
@@ -15,7 +15,7 @@ pipeline {
         stage('Docker Image Build') {
             steps {
                 script {
-                    docker.build("${IMAGE_NAME}:${env.BUILD_NUMBER}")
+                    docker.build("${DOCKER_IMAGE}:${env.BUILD_NUMBER}")
                 }
             }
         }
@@ -24,7 +24,7 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', 'docker-hub') {
-                        docker.image("${IMAGE_NAME}:${env.BUILD_NUMBER}").push()
+                        docker.image("${DOCKER_IMAGE}:${env.BUILD_NUMBER}").push()
                     }
                 }
             }
@@ -34,9 +34,15 @@ pipeline {
             steps {
                 script {
                     sh """
-                        kubectl --kubeconfig=/var/lib/jenkins/.kube/config \
-                        set image deployment/kfc-deployment \
-                        kfc-website=${IMAGE_NAME}:${BUILD_NUMBER} -n default
+                    if kubectl --kubeconfig=/var/lib/jenkins/.kube/config get deployment kfc-static -n default; then
+                        kubectl --kubeconfig=/var/lib/jenkins/.kube/config set image deployment/kfc-static \
+                        kfc-website=${DOCKER_IMAGE}:${BUILD_NUMBER} -n default
+                    else
+                        kubectl --kubeconfig=/var/lib/jenkins/.kube/config create deployment kfc-static \
+                        --image=${DOCKER_IMAGE}:${BUILD_NUMBER} -n default
+                        kubectl --kubeconfig=/var/lib/jenkins/.kube/config expose deployment kfc-static \
+                        --type=NodePort --port=80 -n default
+                    fi
                     """
                 }
             }
