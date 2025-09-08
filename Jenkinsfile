@@ -27,16 +27,18 @@ pipeline {
         }
 
         stage('Kubernetes Deploy') {
-    steps {
-        withCredentials([string(credentialsId: 'Kube_config', variable: 'KUBECONFIG_BASE64')]) {
-            sh '''
-                echo "$KUBECONFIG_BASE64" | base64 --decode > kubeconfig
-                kubectl --kubeconfig=kubeconfig set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:${BUILD_NUMBER} -n default
-                rm -f kubeconfig
-            '''
+            steps {
+                withCredentials([string(credentialsId: 'Kube_config', variable: 'KUBECONFIG_CONTENT')]) {
+                    script {
+                        // Replace escaped newlines with actual newlines
+                        def kubeContent = env.KUBECONFIG_CONTENT.replaceAll('\\\\n', '\n')
+                        writeFile file: 'kubeconfig', text: kubeContent
+                        sh "kubectl --kubeconfig=kubeconfig set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:${BUILD_NUMBER} -n default"
+                        sh "rm -f kubeconfig"
+                    }
+                }
+            }
         }
-    }
-}
     }
 }
 
