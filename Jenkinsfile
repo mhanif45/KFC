@@ -28,8 +28,7 @@ pipeline {
 
 stage('Deploy to Kubernetes') {
     steps {
-        script {
-            withCredentials([credentialsId: 'k8s-cluster']) {
+        script{
                 sh """
                 kubectl set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:${env.BUILD_NUMBER} -n default
                 kubectl rollout status deployment/kfc-deployment -n default
@@ -39,5 +38,4 @@ stage('Deploy to Kubernetes') {
     }
 }
     }
-}
 
