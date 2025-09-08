@@ -25,11 +25,15 @@ pipeline {
                 }
             }
         }
-withCredentials([string(credentialsId: 'Kube_config', variable: 'KUBECONFIG_CONTENT')]) {
-    writeFile file: 'kubeconfig', text: env.KUBECONFIG_CONTENT
-    sh 'kubectl --kubeconfig=kubeconfig set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:22 -n default'
-}
 
-}
+        stage('Kubernetes Deploy') {
+            steps {
+                withCredentials([string(credentialsId: 'Kube_config', variable: 'KUBECONFIG_CONTENT')]) {
+                    writeFile file: 'kubeconfig', text: env.KUBECONFIG_CONTENT
+                    sh "kubectl --kubeconfig=kubeconfig set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:${env.BUILD_NUMBER} -n default"
+                }
+            }
+        }
     }
+}
 
