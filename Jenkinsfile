@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "hanif040/kfc-static"
+    }
+
     stages {
         stage('Code Checkout') {
             steps {
@@ -11,7 +15,7 @@ pipeline {
         stage('Docker Image Build') {
             steps {
                 script {
-                    docker.build("hanif040/kfc-static:${env.BUILD_NUMBER}")
+                    docker.build("${IMAGE_NAME}:${env.BUILD_NUMBER}")
                 }
             }
         }
@@ -20,7 +24,7 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', 'docker-hub') {
-                        docker.image("hanif040/kfc-static:${env.BUILD_NUMBER}").push()
+                        docker.image("${IMAGE_NAME}:${env.BUILD_NUMBER}").push()
                     }
                 }
             }
@@ -28,14 +32,12 @@ pipeline {
 
         stage('Kubernetes Deploy') {
             steps {
-                withCredentials([string(credentialsId: 'Kube_config', variable: 'KUBECONFIG_CONTENT')]) {
-                    script {
-                        // Replace escaped newlines with actual newlines
-                        def kubeContent = env.KUBECONFIG_CONTENT.replaceAll('\\\\n', '\n')
-                        writeFile file: 'kubeconfig', text: kubeContent
-                        sh "kubectl --kubeconfig=kubeconfig set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:${BUILD_NUMBER} -n default"
-                        sh "rm -f kubeconfig"
-                    }
+                script {
+                    sh """
+                        kubectl --kubeconfig=/var/lib/jenkins/.kube/config \
+                        set image deployment/kfc-deployment \
+                        kfc-website=${IMAGE_NAME}:${BUILD_NUMBER} -n default
+                    """
                 }
             }
         }
