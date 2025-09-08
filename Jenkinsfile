@@ -19,7 +19,7 @@ pipeline {
         stage('Docker Image Push') {
             steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub') {
+                    docker.withRegistry('https://index.docker.io/v1/', 'docker-hub') {
                         docker.image("hanif040/kfc-static:${env.BUILD_NUMBER}").push()
                     }
                 }
