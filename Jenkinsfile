@@ -27,19 +27,16 @@ pipeline {
         }
 
         stage('Kubernetes Deploy') {
-            steps {
-                withCredentials([string(credentialsId: 'Kube_config', variable: 'KUBECONFIG_CONTENT')]) {
-                    // Preserve line breaks using triple quotes
-                    writeFile file: 'kubeconfig', text: """${env.KUBECONFIG_CONTENT}"""
-                    
-                    // Deploy the Docker image
-                    sh "kubectl --kubeconfig=kubeconfig set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:${env.BUILD_NUMBER} -n default"
-                    
-                    // Optional: clean up kubeconfig file
-                    sh "rm -f kubeconfig"
-                }
-            }
+    steps {
+        withCredentials([string(credentialsId: 'Kube_config', variable: 'KUBECONFIG_BASE64')]) {
+            sh '''
+                echo "$KUBECONFIG_BASE64" | base64 --decode > kubeconfig
+                kubectl --kubeconfig=kubeconfig set image deployment/kfc-deployment kfc-website=hanif040/kfc-static:${BUILD_NUMBER} -n default
+                rm -f kubeconfig
+            '''
         }
+    }
+}
     }
 }
 
